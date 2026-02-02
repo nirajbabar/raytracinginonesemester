@@ -10,8 +10,8 @@
 #include <unordered_map>
 #include <functional>
 #include <algorithm>
+#include <cstddef>
 
-#include "vec3.h"
 
 #ifdef __CUDACC__
     #include <cuda_runtime.h>

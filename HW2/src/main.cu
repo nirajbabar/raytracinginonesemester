@@ -2,6 +2,7 @@
 #include "buffers.h"
 #include "bvh.h"
 #include "visualizer.h"
+#include "warmup.h"
 #include <numeric>
 #include <chrono>
 
@@ -95,26 +96,10 @@ int main(int argc, char** argv)
             thrust::make_counting_iterator<std::uint32_t>(P),
             TriangleIndices.begin());
 
-        // // --- GPU Warmup & Benchmark ---
-        // // Backup leaves to restore state after warmup
-        // thrust::device_vector<AABB> d_leaves_backup(
-        //     thrust::device_pointer_cast(bvhState.AABBs + (P - 1)), 
-        //     thrust::device_pointer_cast(bvhState.AABBs + (2 * P - 1)));
-        
-        // printf("Warming up GPU...\n");
-        // bvh.buildBVH(
-        //     bvhState.Nodes,
-        //     bvhState.AABBs,
-        //     SceneBoundingBox,
-        //     &TriangleIndices,
-        //     static_cast<int>(P)
-        // );
-        
-        // // Restore state for fair timing
-        // thrust::copy(d_leaves_backup.begin(), d_leaves_backup.end(), 
-        //              thrust::device_pointer_cast(bvhState.AABBs + (P - 1)));
-        // thrust::sequence(TriangleIndices.begin(), TriangleIndices.end());
-        // cudaDeviceSynchronize();
+        // --- GPU Warmup (Lightweight) ---
+        // Instead of running the full build (which modifies data), we run a dummy sort.
+        // This initializes Thrust's internal allocators and kernels without touching real data.
+        warmupGPU();
 
         auto start_gpu = std::chrono::high_resolution_clock::now();
 
