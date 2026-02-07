@@ -1,10 +1,11 @@
 #pragma once
 
-#include "bvh.h"
 #include "camera.h"
 #include "ray.h"
 #include "MeshOBJ.h"
 #include "brdf.h"
+#include "shader.h"
+#include "bvh.h"
 
 struct Light;
 
@@ -24,6 +25,7 @@ void render(
     const Light* __restrict__ lights,
     const int numLights,
     Vec3* __restrict__ output);
+
 
 HYBRID_FUNC inline HitRecord intersectTriangle(const Ray& r,
                                           const Triangle& tri,
@@ -108,6 +110,7 @@ HYBRID_FUNC inline void assignMaterialToHit(
     }
 }
 
+
 HYBRID_FUNC inline Vec3 TraceRayIterative(
     const Ray& primaryRay,
     const int maxDepth,
@@ -158,6 +161,8 @@ HYBRID_FUNC inline Vec3 TraceRayIterative(
 
     return clamp(radiance);
 }
+
+
 
 HYBRID_FUNC inline void SearchBVH(
     const int numTriangles,

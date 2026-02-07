@@ -7,8 +7,18 @@
 #include "brdf.h"
 #include "MeshOBJ.h"
 #include "scene.h"
+#include "bvh.h"
+#include "query.h"
 
-// Small offset to avoid self-intersection / "shadow acne"
+
+HYBRID_FUNC inline void SearchBVH(
+    const int numTriangles,
+    const Ray& ray,
+    const BVHNode* __restrict__ nodes,
+    const AABB* __restrict__ aabbs,
+    const Triangle* __restrict__ triangles,
+    HitRecord& hitRecord);
+
 static constexpr float RT_EPS = 1e-3f;
 
 HYBRID_FUNC inline Vec3 clamp(Vec3 color) {

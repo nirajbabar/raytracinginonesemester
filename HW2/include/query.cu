@@ -7,8 +7,6 @@
 #include <cmath>
 
 
-
-
 #ifdef __CUDACC__
 __global__ void __launch_bounds__(BLOCK_X * BLOCK_Y)
 renderCUDA(const int numTriangles,
