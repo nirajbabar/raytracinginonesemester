@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "vec3.h"
+#include "material.h"
 
 
 struct Vec2 { 
@@ -36,6 +37,48 @@ struct MeshView
     // Optional: Device-friendly accessors
     HYBRID_FUNC Vec3 getVertex(uint32_t idx) const { return positions[idx]; }
     HYBRID_FUNC uint32_t getIndex(uint32_t idx) const { return indices[idx]; }
+};
+
+struct Triangle {
+    Vec3 v0;
+    Vec3 v1;
+    Vec3 v2;
+    Vec3 n0;
+    Vec3 n1;
+    Vec3 n2;
+
+    HYBRID_FUNC Triangle()
+        : v0(make_vec3(0.0f, 0.0f, 0.0f)),
+          v1(make_vec3(0.0f, 0.0f, 0.0f)),
+          v2(make_vec3(0.0f, 0.0f, 0.0f)),
+          n0(make_vec3(0.0f, 0.0f, 0.0f)),
+          n1(make_vec3(0.0f, 0.0f, 0.0f)),
+          n2(make_vec3(0.0f, 0.0f, 0.0f)) {}
+
+    HYBRID_FUNC Triangle(const Vec3& a, const Vec3& b, const Vec3& c)
+        : v0(a), v1(b), v2(c),
+          n0(make_vec3(0.0f, 0.0f, 0.0f)),
+          n1(make_vec3(0.0f, 0.0f, 0.0f)),
+          n2(make_vec3(0.0f, 0.0f, 0.0f)) {}
+
+    HYBRID_FUNC Triangle(const Vec3& a, const Vec3& b, const Vec3& c,
+                         const Vec3& na, const Vec3& nb, const Vec3& nc)
+        : v0(a), v1(b), v2(c), n0(na), n1(nb), n2(nc) {}
+};
+
+struct HitRecord {
+    int triangleIdx; // Index of the hit triangle
+    bool hit;
+    Vec3 p; // position of hit on ray
+    Vec3 normal;
+    double t; // parameter used to define point on ray direction of hit
+    bool front_face;
+    Material mat;
+};
+
+struct MissRecord {
+    Vec3 ray_dir;
+    Vec3 color = make_vec3(0.0f, 0.0f, 0.0f);
 };
 
 struct Mesh
@@ -421,4 +464,3 @@ static void AppendMesh(Mesh& dst, const Mesh& src)
     }
     dst.triangleObjIds.insert(dst.triangleObjIds.end(), src.triangleObjIds.begin(), src.triangleObjIds.end());
 }
-

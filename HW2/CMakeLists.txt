@@ -7,13 +7,14 @@ option(ENABLE_GPU "Enable CUDA implementation" OFF)
 # Define source files
 set(SOURCES
     src/main.cu
-    src/bvh.cu
-    src/warmup.cu
+    include/bvh.cu
+    include/query.cu
 )
 
 # Include directories
 # Matches: -I ../third_party/glm/ 
 include_directories(${CMAKE_SOURCE_DIR}/third_party/glm)
+include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
 if(ENABLE_GPU)

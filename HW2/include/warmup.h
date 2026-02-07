@@ -1,3 +1,5 @@
+#pragma once
+
 #include "warmup.h"
 #include "bvh.h"
 #include "MeshOBJ.h"
@@ -5,9 +7,8 @@
 #include <iostream>
 #include <vector>
 
-void warmupGPU() {
+inline void warmupGPU() {
 #ifdef __CUDACC__
-    std::cout << "[Warmup] initializing GPU resources...\n";
     
     // 1. Create dummy mesh (single triangle)
     Mesh dummyMesh;
@@ -37,9 +38,27 @@ void warmupGPU() {
     
     // 3. Run Pipeline
     AccStruct::BVH bvh;
-    // calculateAABBs internally allocates temporary memory for positions/indices
-    // and runs the computeAABB kernel.
-    bvh.calculateAABBs(dummyMesh, state.AABBs);
+    // calculateAABBs expects device pointers in MeshView, so create a device copy.
+    Vec3* d_positions = nullptr;
+    uint32_t* d_indices = nullptr;
+    cudaMalloc(&d_positions, dummyMesh.positions.size() * sizeof(Vec3));
+    cudaMalloc(&d_indices, dummyMesh.indices.size() * sizeof(uint32_t));
+    cudaMemcpy(d_positions, dummyMesh.positions.data(),
+               dummyMesh.positions.size() * sizeof(Vec3), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_indices, dummyMesh.indices.data(),
+               dummyMesh.indices.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
+
+    MeshView d_mesh{};
+    d_mesh.positions = d_positions;
+    d_mesh.normals = nullptr;
+    d_mesh.uvs = nullptr;
+    d_mesh.indices = d_indices;
+    d_mesh.triangleObjIds = nullptr;
+    d_mesh.numVertices = dummyMesh.positions.size();
+    d_mesh.numIndices = dummyMesh.indices.size();
+    d_mesh.numTriangles = P;
+
+    CHECK_CUDA(bvh.calculateAABBs(d_mesh, state.AABBs), true);
 
     // Thrust Reduce (instantiates thrust::reduce for AABB)
     AABB default_aabb;
@@ -64,7 +83,8 @@ void warmupGPU() {
     );
     
     cudaDeviceSynchronize();
+    cudaFree(d_positions);
+    cudaFree(d_indices);
     cudaFree(d_buffer);
-    std::cout << "[Warmup] Done.\n";
 #endif
 }

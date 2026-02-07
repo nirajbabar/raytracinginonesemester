@@ -12,10 +12,13 @@ __global__ void computeAABB(
     const size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx >= triCount) return;
+    if (mesh.positions == nullptr || mesh.indices == nullptr) return;
 
     uint32_t idx0 = mesh.indices[idx * 3 + 0];
     uint32_t idx1 = mesh.indices[idx * 3 + 1];
     uint32_t idx2 = mesh.indices[idx * 3 + 2];
+
+    if (idx0 >= mesh.numVertices || idx1 >= mesh.numVertices || idx2 >= mesh.numVertices) return;
 
     Vec3 v0 = mesh.positions[idx0];
     Vec3 v1 = mesh.positions[idx1];
@@ -55,45 +58,18 @@ __global__ void ComputeMortonCodes(const AABB* aabbs,
 
 
 void AccStruct::BVH::calculateAABBs(
-    const Mesh& mesh,
+    const MeshView& mesh,
     AABB* aabbs)
 {
-    const size_t triCount = mesh.indices.size() / 3;
+    const size_t triCount = mesh.numTriangles;
 
 #ifdef __CUDACC__
-    Vec3* d_positions = nullptr;
-    uint32_t* d_indices = nullptr;
-    
-    size_t bytesPos = mesh.positions.size() * sizeof(Vec3);
-    size_t bytesIdx = mesh.indices.size() * sizeof(uint32_t);
-    
-    cudaMalloc(&d_positions, bytesPos);
-    cudaMalloc(&d_indices, bytesIdx);
-    cudaCheckError();
-
-    cudaMemcpy(d_positions, mesh.positions.data(), bytesPos, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_indices, mesh.indices.data(), bytesIdx, cudaMemcpyHostToDevice);
-    cudaCheckError();
-
-    MeshView meshView = const_cast<Mesh&>(mesh).getView();
-    meshView.positions = d_positions;
-    meshView.indices = d_indices;
-
     const size_t threadsPerBlock = 256;
     const size_t blocks = (triCount + threadsPerBlock - 1) / threadsPerBlock;
-    
+
     computeAABB<<<blocks, threadsPerBlock>>>(
-        meshView,
-        triCount,
-        aabbs);
-    cudaDeviceSynchronize();
-    cudaCheckError();
+        mesh, triCount, aabbs);
     
-    cudaFree(d_positions);
-    cudaFree(d_indices);
-
-    return;
-
 #else
     for (size_t i = 0; i < triCount; ++i) {
         uint32_t idx0 = mesh.indices[i * 3 + 0];
@@ -129,14 +105,11 @@ void AccStruct::BVH::buildBVH(
     dim3 blockSize(256);
     dim3 gridSize((numTriangles + blockSize.x - 1) / blockSize.x);
 
-    ComputeMortonCodes<<<gridSize, blockSize>>>(
+    CHECK_CUDA((ComputeMortonCodes<<<gridSize, blockSize>>>(
         aabbs,
         numTriangles,
         SceneBoundingBox,
-        mortonCodes64.data().get()
-    );
-    cudaDeviceSynchronize();
-    cudaCheckError();
+        mortonCodes64.data().get())), true)
 
     thrust::sort_by_key(
         mortonCodes64.begin(), 
@@ -204,20 +177,27 @@ void AccStruct::BVH::buildBVH(
             unsigned int parent = BVHNodes[idx].parent_idx;
             while(parent != 0xFFFFFFFF)
             {
+                // Ensure our AABB write (from a previous iteration) is
+                // visible to all threads before we advertise it via the flag.
+                __threadfence();
+
                 const int old = atomicCAS(flags + parent, 0, 1);
                 if(old==0)
                 {
+                    // First child to arrive — the sibling isn't done yet.
                     return;
                 }
                 assert(old==1);
 
+                // Second child to arrive — the sibling's AABB write is
+                // guaranteed visible because its __threadfence() completed
+                // before its atomicCAS, and we observed that CAS result.
                 const auto left_idx = BVHNodes[parent].left_idx;
                 const auto right_idx = BVHNodes[parent].right_idx;
                 const AABB left_aabb = aabbs[left_idx];
                 const AABB right_aabb = aabbs[right_idx];
                 aabbs[parent] = AABB::merge(left_aabb, right_aabb);
                 parent = BVHNodes[parent].parent_idx;
-                // printf("Parent: %d\n", parent);
             }
             return;
         });
@@ -234,6 +214,19 @@ void AccStruct::BVH::buildBVH(
     int numTriangles
 )
 {
+    if (numTriangles <= 0) {
+        return;
+    }
+
+    // Initialize all nodes to a known state (matches GPU path behavior).
+    const int totalNodes = 2 * numTriangles - 1;
+    for (int i = 0; i < totalNodes; ++i) {
+        BVHNodes[i].object_idx = 0xFFFFFFFF;
+        BVHNodes[i].left_idx   = 0xFFFFFFFF;
+        BVHNodes[i].right_idx  = 0xFFFFFFFF;
+        BVHNodes[i].parent_idx = 0xFFFFFFFF;
+    }
+
     // 1. Compute Morton Codes
     std::vector<unsigned long long int> mortonCodes(numTriangles);
     
@@ -288,6 +281,13 @@ void AccStruct::BVH::buildBVH(
     for(int i=0; i<numTriangles; ++i) {
         aabbs[(numTriangles - 1) + i] = leafCopy[i];
     }
+
+    // 3b. Initialize leaves with the triangle index they represent.
+    // Leaves are stored in Morton order, but object_idx must reference original triangle IDs.
+    for (int i = 0; i < numTriangles; ++i) {
+        const int leafNodeIdx = (numTriangles - 1) + i;
+        BVHNodes[leafNodeIdx].object_idx = triangleIndices[i];
+    }
     
     // 4. Construct Internal Nodes
     // Loop over internal nodes 0 to N-2
@@ -312,7 +312,7 @@ void AccStruct::BVH::buildBVH(
     }
     
     // 5. Refit AABBs
-    // Recurse from Root (Node 0)
+    // Recurse from root. For numTriangles==1, root is leaf index 0 and refit is a no-op.
     refit_cpu(0, BVHNodes, aabbs, numTriangles);
 }
 #endif

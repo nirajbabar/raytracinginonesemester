@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imports.h"
+#include "ray.h"
 #include "MeshOBJ.h"
 
 struct BVHNode 
@@ -69,11 +70,62 @@ HYBRID_FUNC inline void aabb_of_triangle(const Vec3& a, const Vec3& b, const Vec
     
 }
 
+
 HYBRID_FUNC inline bool aabbContains(const AABB& box, const Vec3& p) {
     const float epsilon = 0.0f;
     return (p.x >= box.minCorner.x - epsilon && p.x <= box.maxCorner.x + epsilon &&
             p.y >= box.minCorner.y - epsilon && p.y <= box.maxCorner.y + epsilon &&
             p.z >= box.minCorner.z - epsilon && p.z <= box.maxCorner.z + epsilon);
+}
+
+HYBRID_FUNC inline bool intersectAABB(const Ray& r, const AABB& aabb, double tmin, double tmax) {
+    const Vec3 orig = r.origin();
+    const Vec3 dir  = r.direction();
+    const float eps = 1e-8f;
+
+    double t0 = tmin;
+    double t1 = tmax;
+
+    // X slab
+    if (fabsf(dir.x) < eps) {
+        if (orig.x < aabb.minCorner.x || orig.x > aabb.maxCorner.x) return false;
+    } else {
+        const double inv = 1.0 / static_cast<double>(dir.x);
+        double tNear = (static_cast<double>(aabb.minCorner.x) - static_cast<double>(orig.x)) * inv;
+        double tFar  = (static_cast<double>(aabb.maxCorner.x) - static_cast<double>(orig.x)) * inv;
+        if (tNear > tFar) { const double tmp = tNear; tNear = tFar; tFar = tmp; }
+        if (tNear > t0) t0 = tNear;
+        if (tFar  < t1) t1 = tFar;
+        if (t0 > t1) return false;
+    }
+
+    // Y slab
+    if (fabsf(dir.y) < eps) {
+        if (orig.y < aabb.minCorner.y || orig.y > aabb.maxCorner.y) return false;
+    } else {
+        const double inv = 1.0 / static_cast<double>(dir.y);
+        double tNear = (static_cast<double>(aabb.minCorner.y) - static_cast<double>(orig.y)) * inv;
+        double tFar  = (static_cast<double>(aabb.maxCorner.y) - static_cast<double>(orig.y)) * inv;
+        if (tNear > tFar) { const double tmp = tNear; tNear = tFar; tFar = tmp; }
+        if (tNear > t0) t0 = tNear;
+        if (tFar  < t1) t1 = tFar;
+        if (t0 > t1) return false;
+    }
+
+    // Z slab
+    if (fabsf(dir.z) < eps) {
+        if (orig.z < aabb.minCorner.z || orig.z > aabb.maxCorner.z) return false;
+    } else {
+        const double inv = 1.0 / static_cast<double>(dir.z);
+        double tNear = (static_cast<double>(aabb.minCorner.z) - static_cast<double>(orig.z)) * inv;
+        double tFar  = (static_cast<double>(aabb.maxCorner.z) - static_cast<double>(orig.z)) * inv;
+        if (tNear > tFar) { const double tmp = tNear; tNear = tFar; tFar = tmp; }
+        if (tNear > t0) t0 = tNear;
+        if (tFar  < t1) t1 = tFar;
+        if (t0 > t1) return false;
+    }
+
+    return true;
 }
 
 HYBRID_FUNC inline std::uint32_t bitExpansion(std::uint32_t v) noexcept
@@ -360,7 +412,7 @@ namespace AccStruct {
 class BVH
 {
 public:
-    void calculateAABBs(const Mesh& mesh, AABB* aabbs);
+    void calculateAABBs(const MeshView& mesh, AABB* aabbs);
 
 #ifdef __CUDACC__
     void buildBVH(

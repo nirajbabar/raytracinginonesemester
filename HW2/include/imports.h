@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <cstddef>
 
-
 #ifdef __CUDACC__
     #include <cuda_runtime.h>
     #include <device_launch_parameters.h>
@@ -30,18 +29,20 @@
     #include <thrust/complex.h>
     #include <thrust/fill.h>
     #include <thrust/fill.h>
-    #include <cub/cub.cuh>
+    #include <cooperative_groups.h>
+    #include <cooperative_groups/reduce.h>
+    
+    namespace cg = cooperative_groups;
+
     #define HYBRID_FUNC __host__ __device__
 
-    // force glm to work with cuda
-    #define GLM_FORCE_CUDA
-
-    #define cudaCheckError() {                                          \
-        cudaError_t e = cudaGetLastError();                             \
-        if(e != cudaSuccess) {                                          \
-            printf("Cuda failure %s:%d: '%s'\n", __FILE__, __LINE__, cudaGetErrorString(e)); \
-            exit(EXIT_FAILURE);                                         \
-        }                                                               \
+    #define CHECK_CUDA(A, debug) \
+    A; if(debug) { \
+    auto ret = cudaDeviceSynchronize(); \
+    if (ret != cudaSuccess) { \
+    std::cerr << "\n[CUDA ERROR] in " << __FILE__ << "\nLine " << __LINE__ << ": " << cudaGetErrorString(ret); \
+    throw std::runtime_error(cudaGetErrorString(ret)); \
+    } \
     }
 
 #else
@@ -49,8 +50,12 @@
 #endif
 
 
+#ifndef __CUDACC__
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
+    // force glm to work with cuda
+#define GLM_FORCE_CUDA
+#endif
 
 
 

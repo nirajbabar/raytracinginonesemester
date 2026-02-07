@@ -48,6 +48,9 @@ HYBRID_FUNC inline Vec3 cross(const Vec3& u, const Vec3& v) {
                      u.z * v.x - u.x * v.z,
                      u.x * v.y - u.y * v.x);
 }
+HYBRID_FUNC inline float length(const Vec3& v) { return sqrtf(dot(v, v)); }
+HYBRID_FUNC inline float length_squared(const Vec3& v) { return dot(v, v); }
+HYBRID_FUNC inline Vec3 normalize(const Vec3& v) { return v / length(v); }
 
 HYBRID_FUNC inline Vec3 unit_vector(Vec3 v) {
     float len = sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
