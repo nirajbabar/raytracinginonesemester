@@ -320,6 +320,8 @@ int main(int argc, char** argv)
 
     // --- Camera and Ray Generation ---
     int max_depth = has_scene ? scene.settings.max_depth : 1;
+    int spp = has_scene ? scene.settings.spp : 8;
+
     Vec3 miss_color = has_scene ? scene.miss_color : make_vec3(0.0f, 0.0f, 0.0f);
     Camera cam = has_scene ? scene.camera : Camera();
     std::vector<Light> render_lights = scene.lights;
@@ -397,7 +399,7 @@ int main(int argc, char** argv)
 
         h_tris[i] = Triangle(globalMesh.positions[i0], globalMesh.positions[i1], globalMesh.positions[i2], n0, n1, n2);
     }
-    render(P, img_w, img_h, cam, miss_color, max_depth, bvhState.Nodes, bvhState.AABBs, h_tris.data(),
+    render(P, img_w, img_h, cam, miss_color, max_depth, spp, bvhState.Nodes, bvhState.AABBs, h_tris.data(),
            globalMesh.triangleObjIds.data(), objectMaterials.data(), num_object_materials,
            num_rays, render_lights.data(), num_lights, image.data());
 #endif

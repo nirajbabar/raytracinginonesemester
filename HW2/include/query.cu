@@ -2,9 +2,11 @@
 #include "query.h"
 #include "scene.h"
 #include "shader.h"
+#include "antialias.h"
 
 #include <cfloat>
 #include <cmath>
+#include <iostream>
 
 
 #ifdef __CUDACC__
@@ -57,6 +59,7 @@ void render(
     const Camera cam,
     const Vec3 missColor,
     const int max_depth,
+    const int spp,
     const BVHNode* __restrict__ nodes,
     const AABB* __restrict__ aabbs,
     const Triangle* __restrict__ triangles,
@@ -97,17 +100,28 @@ void render(
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
             const int pix_id = W * y + x;
-            const Ray ray = cam.get_ray(x, y);
 
-            output[pix_id] = TraceRayIterative(
-                ray,
-                max_depth,
-                missColor,
-                triCount,
-                nodes, aabbs, triangles,
-                triObjectIds, objectMaterials, numObjectMaterials,
-                lights, numLights
-            );
+            Vec3 col{0,0,0};
+
+            auto offsets = jittered_samples(spp, 42u);
+
+            for (const auto &o : offsets) {
+                float px = float(x) + o.first;
+                float py = float(y) + o.second;
+
+                const Ray ray = cam.get_ray(px, py);
+
+                col = col + TraceRayIterative(
+                    ray,
+                    max_depth,
+                    missColor,
+                    triCount,
+                    nodes, aabbs, triangles,
+                    triObjectIds, objectMaterials, numObjectMaterials,
+                    lights, numLights
+                );
+            }
+            output[pix_id] = col/float(spp);
         }
     }
 #endif

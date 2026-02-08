@@ -15,6 +15,7 @@ void render(
     const Camera cam,
     const Vec3 missColor,
     const int max_depth,
+    const int spp,
     const BVHNode* __restrict__ nodes,
     const AABB* __restrict__ aabbs,
     const Triangle* __restrict__ triangles,
