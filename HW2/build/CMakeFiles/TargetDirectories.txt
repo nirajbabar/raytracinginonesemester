@@ -1,0 +1,3 @@
+/home/anishv698/raytracinginonesemester/HW2/build/CMakeFiles/bvh_viz.dir
+/home/anishv698/raytracinginonesemester/HW2/build/CMakeFiles/edit_cache.dir
+/home/anishv698/raytracinginonesemester/HW2/build/CMakeFiles/rebuild_cache.dir
